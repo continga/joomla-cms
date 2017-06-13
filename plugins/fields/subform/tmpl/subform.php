@@ -29,22 +29,22 @@ echo '</ul>';
  * Sometimes the above is not what you want, because you want access to the
  * raw (unrendered) values of all subfields. Then this way could be a possibility:
  */
-echo '<ul>';
-foreach ($field->subfield_rows as $subfield_objects)
-{
-	echo '<li>';
-	$buffer = array();
-	foreach (array_keys(get_object_vars($subfield_objects)) as $subfield_name)
-	{
-		$buffer[] = (
-			$subfield_name . ': '
-			. $subfield_objects->{$subfield_name}->rawvalue
-		);
-	}
-	echo implode(', ', $buffer);
-	echo '</li>';
-}
-echo '</ul>';
+//echo '<ul>';
+//foreach ($field->subfield_rows as $subfield_objects)
+//{
+//	echo '<li>';
+//	$buffer = array();
+//	foreach (array_keys(get_object_vars($subfield_objects)) as $subfield_name)
+//	{
+//		$buffer[] = (
+//			$subfield_name . ': '
+//			. $subfield_objects->{$subfield_name}->rawvalue
+//		);
+//	}
+//	echo implode(', ', $buffer);
+//	echo '</li>';
+//}
+//echo '</ul>';
 /**
  * This example maybe looks a bit odd, but the the idea is that you could use
  * something like this:

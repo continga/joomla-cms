@@ -14,7 +14,7 @@ JLoader::import('components.com_fields.libraries.fieldsplugin', JPATH_ADMINISTRA
 /**
  * Fields subform Plugin
  *
- * @since  3.8.0
+ * @since __DEPLOY_VERSION__
  */
 class PlgFieldsSubform extends FieldsPlugin
 {

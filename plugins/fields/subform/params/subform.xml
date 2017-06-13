@@ -36,7 +36,7 @@
 
 					<field
 						name="type"
-						type="type"
+						type="subformtype"
 						label="COM_FIELDS_FIELD_TYPE_LABEL"
 						default="text"
 						description="COM_FIELDS_FIELD_TYPE_DESC"
