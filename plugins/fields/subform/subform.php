@@ -1,0 +1,229 @@
+<?php
+/**
+ * @package     Joomla.Plugin
+ * @subpackage  Fields.Subform
+ *
+ * @copyright   Copyright (C) 2005 - 2017 Open Source Matters, Inc. All rights reserved.
+ * @license     GNU General Public License version 2 or later; see LICENSE.txt
+ */
+
+defined('_JEXEC') or die;
+
+JLoader::import('components.com_fields.libraries.fieldsplugin', JPATH_ADMINISTRATOR);
+
+/**
+ * Fields subform Plugin
+ *
+ * @since  3.8.0
+ */
+class PlgFieldsSubform extends FieldsPlugin
+{
+	/**
+	 * Manipulates the $field->value before the field is being passed to
+	 * onCustomFieldsPrepareField.
+	 *
+	 * @param string $context
+	 * @param object $item
+	 * @param \stdClass $field
+	 * @return void
+	 */
+	public function onCustomFieldsBeforePrepareField($context, $item, $field)
+	{
+		// Check if the field should be processed by us
+		if (!$this->isTypeSupported($field->type))
+		{
+			return;
+		}
+
+		$decoded_value = json_decode($field->value, true);
+		if (!$decoded_value || !is_array($decoded_value))
+		{
+			return;
+		}
+
+		$field->value = $decoded_value;
+	}
+
+	/**
+	 * Renders this fields value by rendering all subfields of this subform
+	 * and joining all those rendered subfields. Additionally stores the value
+	 * and raw value of all rendered subfields into $field->subfield_rows.
+	 *
+	 * @param string $context
+	 * @param object $item
+	 * @param \stdClass $field
+	 * @return string
+	 */
+	public function onCustomFieldsPrepareField($context, $item, $field)
+	{
+		// Check if the field should be processed by us
+		if (!$this->isTypeSupported($field->type))
+		{
+			return;
+		}
+
+		// If we dont have any subfields (or values for them), nothing to do.
+		if (!is_array($field->value) || count($field->value) < 1)
+		{
+			return;
+		}
+
+		/**
+		 * Placeholder to hold all subform rows (if this subform field is repeatable)
+		 * and per array entry a \stdClass object which holds all the rendered values
+		 * of the configured subfields.
+		 */
+		$final_values = array();
+		/**
+		 * Placeholder to hold all subform rows (if this subform field is repeatable)
+		 * and per array entry a \stdClass object which holds another \stdClass object
+		 * for each configured subfield, which then again holds the rendered value and
+		 * the raw value of each subfield.
+		 */
+		$subfield_rows = array();
+		// Iterate over each row of the data (if repeatable)
+		foreach ($field->value as $row)
+		{
+			// The rendered values for this row, indexed by the name of the subfield
+			$row_values = new \stdClass;
+			// Holds for all subfields (indexed by their name) for this row their rendered and raw value.
+			$row_subfields = new \stdClass();
+			// For each row, iterate over all the subfields
+			foreach ($this->getSubfieldsFromField($field) as $_subfield)
+			{
+				// Clone this virtual subfield to not interfere with the other rows
+				$subfield = (clone $_subfield);
+				// Just to be sure, unset this subfields value (and rawvalue)
+				$subfield->rawvalue = $subfield->value = '';
+				// If we have data for this field in the current row
+				if (isset($row[$subfield->name]))
+				{
+					// Take over the data into our virtual subfield
+					$subfield->rawvalue = $subfield->value = $row[$subfield->name];
+				}
+
+				// Render this virtual subfield
+				$subfield->value = \JEventDispatcher::getInstance()->trigger(
+					'onCustomFieldsPrepareField',
+					array($context, $item, $subfield)
+				);
+				if (is_array($subfield->value))
+				{
+					$subfield->value = implode(' ', $subfield->value);
+				}
+
+				// Store this subfields rendered value into our $row_values object
+				$row_values->{$subfield->name} = $subfield->value;
+				// Store the value and rawvalue of this subfield into our $row_subfields object
+				$row_subfields->{$subfield->name} = new \stdClass();
+				$row_subfields->{$subfield->name}->value = $subfield->value;
+				$row_subfields->{$subfield->name}->rawvalue = $subfield->rawvalue;
+			}
+			// Store all the rendered subfield values of this row
+			$final_values[] = $row_values;
+			// Store all the rendered and raw subfield values of this row
+			$subfield_rows[] = $row_subfields;
+		}
+		/**
+		 * Store all the rendered and raw values of this subfield rows in $field->subfield_rows,
+		 * because we maybe want to be able to have access to the rendered (and raw)
+		 * value of each row and subfield.
+		 */
+		$field->subfield_rows = $subfield_rows;
+		/**
+		 * Store the renderer per-row subfield values in $field->value, which
+		 * will be rendered (combined into one rendered string) by our parent next.
+		 */
+		$field->value = $final_values;
+
+		return parent::onCustomFieldsPrepareField($context, $item, $field);
+	}
+
+	/**
+	 * Returns a DOMElement which is the child of $orig_parent and represents
+	 * the form XML definition for this subform field.
+	 *
+	 * @param \stdClass $field
+	 * @param DOMElement $orig_parent
+	 * @param JForm $form
+	 * @return \DOMElement
+	 */
+	public function onCustomFieldsPrepareDom($field, DOMElement $orig_parent, JForm $form)
+	{
+		// Call the onCustomFieldsPrepareDom method on FieldsPlugin
+		$parent_field = parent::onCustomFieldsPrepareDom($field, $orig_parent, $form);
+		if (!$parent_field)
+		{
+			return $parent_field;
+		}
+		$parent_field->setAttribute('icon', 'list');
+		$parent_field->setAttribute('multiple', 'true');
+		$parent_field->setAttribute('layout', 'joomla.form.field.subform.repeatable-table');
+
+		$parent_fieldset = $parent_field->appendChild(new DOMElement('form'));
+		$parent_fieldset->setAttribute('hidden', 'true');
+		$parent_fieldset->setAttribute('name', ($field->name . '_modal'));
+		$parent_fieldset->setAttribute('repeat', 'true');
+
+		foreach ($this->getSubfieldsFromField($field) as $subfield)
+		{
+			\JEventDispatcher::getInstance()->trigger(
+				'onCustomFieldsPrepareDom',
+				array($subfield, $parent_fieldset, $form)
+			);
+		}
+
+		return $parent_field;
+	}
+
+	/**
+	 * Returns an array of all options configured for this field.
+	 *
+	 * @param \stdClass $field
+	 * @return \stdClass[]
+	 */
+	protected function getOptionsFromField(\stdClass $field)
+	{
+		$result = array();
+
+		// Fetch the options from the plugin
+		$params = clone($this->params);
+		$params->merge($field->fieldparams);
+
+		foreach ($params->get('options', array()) as $option)
+		{
+			$result[] = (object) $option;
+		}
+
+		return $result;
+	}
+
+	/**
+	 * Returns an array of all subfields for this subform field.
+	 *
+	 * @param stdClass $field
+	 * @return \stdClass[]
+	 */
+	protected function getSubfieldsFromField(\stdClass $field)
+	{
+		$result = array();
+
+		foreach ($this->getOptionsFromField($field) as $option)
+		{
+			/* @TODO Better solution to this? */
+			$subfield = (clone $field);
+			$subfield->id = null;
+			$subfield->title = $option->label;
+			$subfield->name = $option->name;
+			$subfield->type = $option->type;
+			$subfield->required = '0';
+			$subfield->default_value = $option->default_value;
+			$subfield->label = $option->label;
+			$subfield->description = $option->description;
+
+			$result[] = $subfield;
+		}
+
+		return $result;
+	}
+}
