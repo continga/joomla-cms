@@ -3,6 +3,18 @@
 	<fields name="fieldparams">
 		<fieldset name="fieldparams">
 			<field
+				name="repeat"
+				type="radio"
+				label="PLG_FIELDS_SUBFORM_PARAMS_REPEAT_LABEL"
+				description="PLG_FIELDS_SUBFORM_PARAMS_REPEAT_DESC"
+				default="1"
+				class="btn-group btn-group-yesno"
+			>
+				<option value="1">JYES</option>
+				<option value="0">JNO</option>
+			</field>
+
+			<field
 				name="options"
 				type="subform"
 				label="PLG_FIELDS_SUBFORM_PARAMS_OPTIONS_LABEL"
@@ -32,18 +44,11 @@
 					/>
 
 					<field
-						name="default_value"
-						type="textarea"
-						filter="raw"
-						label="COM_FIELDS_FIELD_DEFAULT_VALUE_LABEL"
-						description="COM_FIELDS_FIELD_DEFAULT_VALUE_DESC"
-					/>
-
-					<field
 						name="label"
 						type="text"
 						label="COM_FIELDS_FIELD_LABEL_LABEL"
 						description="COM_FIELDS_FIELD_LABEL_DESC"
+						required="true"
 					/>
 
 					<field
@@ -52,6 +57,14 @@
 						label="JGLOBAL_DESCRIPTION"
 						description="COM_FIELDS_FIELD_DESCRIPTION_DESC"
 						filter="HTML"
+					/>
+
+					<field
+						name="default_value"
+						type="textarea"
+						filter="raw"
+						label="COM_FIELDS_FIELD_DEFAULT_VALUE_LABEL"
+						description="COM_FIELDS_FIELD_DEFAULT_VALUE_DESC"
 					/>
 				</form>
 			</field>

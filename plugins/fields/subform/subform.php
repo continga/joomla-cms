@@ -68,6 +68,9 @@ class PlgFieldsSubform extends FieldsPlugin
 			return;
 		}
 
+		// Get the field params
+		$field_params = $this->getParamsFromField($field);
+
 		/**
 		 * Placeholder to hold all subform rows (if this subform field is repeatable)
 		 * and per array entry a \stdClass object which holds all the rendered values
@@ -81,8 +84,16 @@ class PlgFieldsSubform extends FieldsPlugin
 		 * the raw value of each subfield.
 		 */
 		$subfield_rows = array();
-		// Iterate over each row of the data (if repeatable)
-		foreach ($field->value as $row)
+
+		// Create an array with entries being subform forms, and if not repeatable,
+		// containing only one element.
+		$rows = $field->value;
+		if ($field_params->get('repeat', '1') == '0')
+		{
+			$rows = array($field->value);
+		}
+		// Iterate over each row of the data
+		foreach ($rows as $row)
 		{
 			// The rendered values for this row, indexed by the name of the subfield
 			$row_values = new \stdClass;
@@ -151,22 +162,38 @@ class PlgFieldsSubform extends FieldsPlugin
 	public function onCustomFieldsPrepareDom($field, DOMElement $orig_parent, JForm $form)
 	{
 		// Call the onCustomFieldsPrepareDom method on FieldsPlugin
+		// This will create a new 'field' DOMElement with type=subform
 		$parent_field = parent::onCustomFieldsPrepareDom($field, $orig_parent, $form);
 		if (!$parent_field)
 		{
 			return $parent_field;
 		}
-		$parent_field->setAttribute('icon', 'list');
-		$parent_field->setAttribute('multiple', 'true');
-		$parent_field->setAttribute('layout', 'joomla.form.field.subform.repeatable-table');
 
+		// Get the configured parameters for this subform field
+		$field_params = $this->getParamsFromField($field);
+
+		// If this subform should be repeatable, set some attributes on the subform element
+		if ($field_params->get('repeat', '1') == '1')
+		{
+			$parent_field->setAttribute('multiple', 'true');
+			$parent_field->setAttribute('layout', 'joomla.form.field.subform.repeatable-table');
+		}
+
+		// Create a child 'form' DOMElement under the field[type=subform] element.
 		$parent_fieldset = $parent_field->appendChild(new DOMElement('form'));
 		$parent_fieldset->setAttribute('hidden', 'true');
 		$parent_fieldset->setAttribute('name', ($field->name . '_modal'));
-		$parent_fieldset->setAttribute('repeat', 'true');
+		// If this subform should be repeatable, set some attributes on the modal
+		if ($field_params->get('repeat', '1') == '1')
+		{
+			$parent_fieldset->setAttribute('repeat', 'true');
+		}
 
+		// Iterate over the configured fields of this subform
 		foreach ($this->getSubfieldsFromField($field) as $subfield)
 		{
+			// Let the relevant plugins do their work and insert the correct
+			// DOMElement's into our $parent_fieldset.
 			\JEventDispatcher::getInstance()->trigger(
 				'onCustomFieldsPrepareDom',
 				array($subfield, $parent_fieldset, $form)
@@ -187,15 +214,29 @@ class PlgFieldsSubform extends FieldsPlugin
 		$result = array();
 
 		// Fetch the options from the plugin
-		$params = clone($this->params);
-		$params->merge($field->fieldparams);
-
+		$params = $this->getParamsFromField($field);
 		foreach ($params->get('options', array()) as $option)
 		{
 			$result[] = (object) $option;
 		}
 
 		return $result;
+	}
+
+	/**
+	 * Returns the configured params for a given subform field.
+	 *
+	 * @param \stdClass $field
+	 * @return Joomla\Registry\Registry
+	 */
+	protected function getParamsFromField(\stdClass $field)
+	{
+		$params = clone($this->params);
+		if (isset($field->fieldparams) && is_object($field->fieldparams))
+		{
+			$params->merge($field->fieldparams);
+		}
+		return $params;
 	}
 
 	/**
