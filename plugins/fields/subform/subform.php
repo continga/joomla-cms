@@ -19,6 +19,14 @@ JLoader::import('components.com_fields.libraries.fieldsplugin', JPATH_ADMINISTRA
 class PlgFieldsSubform extends FieldsPlugin
 {
 	/**
+	 * Two-dimensional array to hold to do a fast in-memory caching of rendered
+	 * subfield values.
+	 *
+	 * @var array
+	 */
+	protected $renderCache = array();
+
+	/**
 	 * Manipulates the $field->value before the field is being passed to
 	 * onCustomFieldsPrepareField.
 	 *
@@ -110,14 +118,29 @@ class PlgFieldsSubform extends FieldsPlugin
 				if (isset($row[$subfield->name]))
 				{
 					// Take over the data into our virtual subfield
-					$subfield->rawvalue = $subfield->value = $row[$subfield->name];
+					$subfield->rawvalue = $subfield->value = trim($row[$subfield->name]);
 				}
 
-				// Render this virtual subfield
-				$subfield->value = \JEventDispatcher::getInstance()->trigger(
-					'onCustomFieldsPrepareField',
-					array($context, $item, $subfield)
-				);
+				// Do we have a rendercache entry for this type?
+				if (!isset($this->renderCache[$subfield->type]))
+				{
+					$this->renderCache[$subfield->type] = array();
+				}
+
+				// Lets see if we have a fast in-memory result for this
+				if (isset($this->renderCache[$subfield->type][$subfield->rawvalue]))
+				{
+					$subfield->value = $this->renderCache[$subfield->type][$subfield->rawvalue];
+				}
+				else
+				{
+					// Render this virtual subfield
+					$subfield->value = \JEventDispatcher::getInstance()->trigger(
+						'onCustomFieldsPrepareField',
+						array($context, $item, $subfield)
+					);
+					$this->renderCache[$subfield->type][$subfield->rawvalue] = $subfield->value;
+				}
 				if (is_array($subfield->value))
 				{
 					$subfield->value = implode(' ', $subfield->value);
