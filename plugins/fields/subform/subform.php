@@ -23,8 +23,87 @@ class PlgFieldsSubform extends FieldsPlugin
 	 * subfield values.
 	 *
 	 * @var array
+	 *
+	 * @since __DEPLOY_VERSION__
 	 */
 	protected $renderCache = array();
+
+	public function onContentPrepareForm(JForm $form, $data)
+	{
+		$path = $this->getFormPath($form, $data);
+		if ($path === null)
+		{
+			return;
+		}
+		// Load our own form definition
+		$xml = new DOMDocument();
+		$xml->load($path);
+
+		$xmlxpath = new DOMXPath($xml);
+		$hiddenform = $xmlxpath->evaluate(
+			'/form/fields[@name="fieldparams"]/fieldset[@name="fieldparams"]/field[@name="options"]/form'
+		);
+		if ($hiddenform->length != 1)
+		{
+			// Something is wrong, abort.
+			return;
+		}
+		$hiddenform = $hiddenform->item(0);
+
+		// Iterate over all fields which we know (all our wanted subfields).
+		$fieldTypes = FieldsHelper::getFieldTypes();
+		foreach ($fieldTypes as $fieldType)
+		{
+			// Skip subform type, we dont want to allow subforms in subforms
+			// (to ease complexity)
+			if ($fieldType['type'] == 'subform')
+			{
+				continue;
+			}
+			// Check whether the XML definition file for that type exists
+			$path = (JPATH_PLUGINS . '/' . $this->_type . '/' . $fieldType['type'] . '/params/' . $fieldType['type'] . '.xml');
+			if (!file_exists($path))
+			{
+				continue;
+			}
+
+			try
+			{
+				// Try to load the XML definition file into a DOMDocument
+				$subxml = new DOMDocument();
+				$subxml->load($path);
+				$subxmlxpath = new DOMXPath($subxml);
+
+				// XPath all fields from that XML document
+				$fields = $subxmlxpath->evaluate('/form/fields[@name="fieldparams"]/fieldset[@name="fieldparams"]/field');
+				for ($i = 0; $i < $fields->length; $i++)
+				{
+					$field = $fields->item($i);
+					/* @var $field DOMNode */
+
+					// Rewrite this fields name, e.g. rewrite name=='buttons' for
+					// the editor fieldtype to '_type-editor_buttons'
+					$this->rewriteNodeNameRecursive(
+						$field,
+						('_type-' . $fieldType['type'] . '_')
+					);
+
+					// And set it to hidden
+					//$field['hidden'] = 'true';
+
+					// Import the rewritten field into our parent form
+					$hiddenform->appendChild($xml->importNode($field, true));
+				}
+			}
+			catch (Exception $e)
+			{
+				// Ignore this type for now.
+			}
+		}
+
+		// And finally load the form into the JForm
+		$form->load($xml->saveXML(), true, '/form/*');
+	}
 
 	/**
 	 * Manipulates the $field->value before the field is being passed to
@@ -33,7 +112,10 @@ class PlgFieldsSubform extends FieldsPlugin
 	 * @param string $context
 	 * @param object $item
 	 * @param \stdClass $field
+	 *
 	 * @return void
+	 *
+	 * @since __DEPLOY_VERSION__
 	 */
 	public function onCustomFieldsBeforePrepareField($context, $item, $field)
 	{
@@ -60,7 +142,10 @@ class PlgFieldsSubform extends FieldsPlugin
 	 * @param string $context
 	 * @param object $item
 	 * @param \stdClass $field
+	 *
 	 * @return string
+	 *
+	 * @since __DEPLOY_VERSION__
 	 */
 	public function onCustomFieldsPrepareField($context, $item, $field)
 	{
@@ -180,7 +265,10 @@ class PlgFieldsSubform extends FieldsPlugin
 	 * @param \stdClass $field
 	 * @param DOMElement $orig_parent
 	 * @param JForm $form
+	 *
 	 * @return \DOMElement
+	 *
+	 * @since __DEPLOY_VERSION__
 	 */
 	public function onCustomFieldsPrepareDom($field, DOMElement $orig_parent, JForm $form)
 	{
@@ -230,7 +318,10 @@ class PlgFieldsSubform extends FieldsPlugin
 	 * Returns an array of all options configured for this field.
 	 *
 	 * @param \stdClass $field
+	 *
 	 * @return \stdClass[]
+	 *
+	 * @since __DEPLOY_VERSION__
 	 */
 	protected function getOptionsFromField(\stdClass $field)
 	{
@@ -250,7 +341,10 @@ class PlgFieldsSubform extends FieldsPlugin
 	 * Returns the configured params for a given subform field.
 	 *
 	 * @param \stdClass $field
+	 *
 	 * @return Joomla\Registry\Registry
+	 *
+	 * @since __DEPLOY_VERSION__
 	 */
 	protected function getParamsFromField(\stdClass $field)
 	{
@@ -266,7 +360,10 @@ class PlgFieldsSubform extends FieldsPlugin
 	 * Returns an array of all subfields for this subform field.
 	 *
 	 * @param stdClass $field
+	 *
 	 * @return \stdClass[]
+	 *
+	 * @since __DEPLOY_VERSION__
 	 */
 	protected function getSubfieldsFromField(\stdClass $field)
 	{
@@ -289,5 +386,29 @@ class PlgFieldsSubform extends FieldsPlugin
 		}
 
 		return $result;
+	}
+
+	/**
+	 * Recursively prefixes the 'name' attribute of $node with $prefix
+	 *
+	 * @param DOMElement $node
+	 * @param string $prefix
+	 *
+	 * @since __DEPLOY_VERSION__
+	 */
+	protected function rewriteNodeNameRecursive(DOMElement $node, $prefix)
+	{
+		if ($node->hasAttribute('name'))
+		{
+			$node->setAttribute('name', ($prefix . $node->getAttribute('name')));
+		}
+
+		foreach ($node->childNodes as $childNode)
+		{
+			if ($childNode instanceof DOMElement)
+			{
+				$this->rewriteNodeNameRecursive($childNode, $prefix);
+			}
+		}
 	}
 }
