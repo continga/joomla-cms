@@ -68,8 +68,10 @@
 	$.subformRepeatable.prototype.prepareTemplate = function(){
 		// create from template
 		if(this.options.rowTemplateSelector){
-			var tmplElement = this.$container.find(this.options.rowTemplateSelector)[0] || {};
-			this.template = $.trim(tmplElement.text || tmplElement.textContent); //(text || textContent) is IE8 fix
+			var tmplElement = this.$container.find(this.options.rowTemplateSelector).last()[0] || {};
+			// do a decodeURIComponent() here, because the text value is url encoded
+			// to make sure we dont destroy our markup
+			this.template = decodeURIComponent($.trim(tmplElement.text || tmplElement.textContent)); //(text || textContent) is IE8 fix
 		}
 		// create from existing rows
 		else {
@@ -253,6 +255,9 @@
 		if(window.SqueezeBox && window.SqueezeBox.assign){
 			SqueezeBox.assign($row.find('a.modal').get(), {parse: 'rel'});
 		}
+
+		// subforms in subforms
+		$row.find('div.subform-repeatable').subformRepeatable();
 	};
 
 	// defaults
