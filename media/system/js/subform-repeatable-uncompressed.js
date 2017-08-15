@@ -149,7 +149,7 @@
 		var group = $row.attr('data-group'),// current group name
 			basename = $row.attr('data-base-name'), // group base name, without count
 			count    = count || 0,
-			countnew = Math.max(this.lastRowNum + 1, count + 1),
+			countnew = Math.max(this.lastRowNum, count),
     		groupnew = basename + countnew; // new group name
 
 		this.lastRowNum = countnew;
@@ -242,7 +242,7 @@
 			// And recursively do the replacements more times
 			this.recursiveReplaceNested(nestedElement, search, replace);
 			// Now re-insert the replaced html content into our element
-			nestedTemplate.html(encodeURIComponent(nestedElement.get(0).prop('outerHTML')));
+			nestedTemplate.html(encodeURIComponent(nestedElement.prop('outerHTML')));
 		}
 	};
 
