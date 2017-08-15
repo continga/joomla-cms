@@ -34,9 +34,6 @@ if ($multiple)
 }
 
 $sublayout = empty($groupByFieldset) ? 'section' : 'section-byfieldsets';
-
-// @TODO
-$unique_subform_id = bin2hex(openssl_random_pseudo_bytes(4));
 ?>
 
 <div class="row-fluid">
@@ -47,6 +44,7 @@ $unique_subform_id = bin2hex(openssl_random_pseudo_bytes(4));
 			data-bt-move="a.group-move-<?php echo $unique_subform_id; ?>"
 			data-repeatable-element="div.subform-repeatable-group-<?php echo $unique_subform_id; ?>"
 			data-minimum="<?php echo $min; ?>" data-maximum="<?php echo $max; ?>">
+
 			<?php if (!empty($buttons['add'])) : ?>
 			<div class="btn-toolbar">
 				<div class="btn-group">

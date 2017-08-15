@@ -18,7 +18,6 @@ defined('_JEXEC') or die;
  * @var array   $buttons    Array of the buttons that will be rendered
  */
 extract($displayData);
-
 ?>
 
 <tr

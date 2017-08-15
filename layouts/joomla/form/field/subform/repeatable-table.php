@@ -66,9 +66,6 @@ else
 		'.subform-table-sublayout-section .controls { margin-left: 0px }'
 	);
 }
-
-// @TODO
-$unique_subform_id = bin2hex(openssl_random_pseudo_bytes(4));
 ?>
 
 <div class="row-fluid">
