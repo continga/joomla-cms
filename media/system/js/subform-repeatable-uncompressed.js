@@ -68,10 +68,8 @@
 	$.subformRepeatable.prototype.prepareTemplate = function(){
 		// create from template
 		if (this.options.rowTemplateSelector) {
-			var tmplElement = this.$container.find(this.options.rowTemplateSelector).last()[0] || {};
-			// do a decodeURIComponent() here, because the text value is url encoded
-			// to make sure we dont destroy our markup
-			this.template = decodeURIComponent($.trim(tmplElement.text || tmplElement.textContent)); //(text || textContent) is IE8 fix
+			// Find the template element and get its HTML content, this is our template.
+			this.template = $.trim(this.$container.find(this.options.rowTemplateSelector).html()) || '';
 		}
 		// create from existing rows
 		else {
@@ -144,13 +142,18 @@
 		$row.remove();
 	};
 
-	// fix names ind id`s for field that in $row
-	$.subformRepeatable.prototype.fixUniqueAttributes = function($row, count){
-		var group = $row.attr('data-group'),// current group name
-			basename = $row.attr('data-base-name'), // group base name, without count
-			count    = count || 0,
+	// fix names and id`s for fields in $row
+	$.subformRepeatable.prototype.fixUniqueAttributes = function(
+		$row, // the jQuery object to do fixes in
+		count, // existing count of rows
+		group, // current group name, e.g. 'optionsX'
+		basename // group base name, without count, e.g. 'options'
+	) {
+		var group = (typeof group === 'undefined' ? $row.attr('data-group') : group),
+			basename = (typeof basename === 'undefined' ? $row.attr('data-base-name') : basename),
+			count    = (typeof count === 'undefined' ? 0 : count),
 			countnew = Math.max(this.lastRowNum, count),
-    		groupnew = basename + countnew; // new group name
+			groupnew = basename + countnew;
 
 		this.lastRowNum = countnew;
 		$row.attr('data-group', groupnew);
@@ -206,43 +209,20 @@
 			$row.find('label[for="' + forOldAttr + '"]').attr('for', idNew).attr('id', idNew + '-lbl');
 		}
 
-		// Create 2 strings: basename + old group, and basename + new group
-		var search = '[' + basename + '][' + group + ']',
-		    replace = '[' + basename + '][' + groupnew + ']';
-		// Does our row still contain the basename + old group? This should not happen!
-		if ($row.html().indexOf(search) !== -1) {
-			console.log('Old basename+group still existant in $row html');
-		}
-		// Recursively replace our basename + old group with basename + new group
-		// inside of nested subform template elements.
-		this.recursiveReplaceNested($row, search, replace);
-	};
-
-	$.subformRepeatable.prototype.recursiveReplaceNested = function($row, search, replace) {
-		// Try to find the row remplate selector in $row
+		/**
+		 * Recursively replace our basename + old group with basename + new group
+		 * inside of nested subform template elements. First we try to find such
+		 * template elements, then we iterate through them and do the same replacements
+		 * that we have made here inside of them.
+		 */
 		var nestedTemplates = $row.find(this.options.rowTemplateSelector);
-		if (nestedTemplates.length < 1) {
-			return;
-		}
 		// If we found it, iterate over the found ones (might be more than one!)
 		for (var i = 0; i < nestedTemplates.length; i++) {
-			// Get the element
-			var nestedTemplate = $(nestedTemplates[i]);
-			// Do our replacement; the HTML content is urlencoded, so we urlencode
-			// our search/replace parameters, also because we then don't need to
-			// regexp escape the search parameter (we are using regexp to globally replace).
-			nestedTemplate.html(nestedTemplate.html().replace(
-				new RegExp(encodeURIComponent(search), 'g'),
-				encodeURIComponent(replace)
-			));
-			// URI decode its HTML content to could have access to deeper nested ones
-			var nestedTemplateContent = decodeURIComponent(nestedTemplate.html());
-			// Create a new element out of it
-			var nestedElement = $(nestedTemplateContent);
-			// And recursively do the replacements more times
-			this.recursiveReplaceNested(nestedElement, search, replace);
-			// Now re-insert the replaced html content into our element
-			nestedTemplate.html(encodeURIComponent(nestedElement.prop('outerHTML')));
+			// Get the nested templates content (as DocumentFragment) and cast it
+			// to a jQuery object
+			var nestedTemplate = $($(nestedTemplates[i]).prop('content'));
+			// Fix the attributes for this nested template.
+			this.fixUniqueAttributes(nestedTemplate, count, group, basename);
 		}
 	};
 
@@ -315,7 +295,7 @@
 		repeatableElement: ".subform-repeatable-group",
 		// selector for the row template element with URL-encoded template inside it,
 		// must *NOT* be unique per nested subform!
-		rowTemplateSelector: 'script.subform-repeatable-template-section',
+		rowTemplateSelector: 'template.subform-repeatable-template-section',
 		// container for rows, same as main container by default
 		rowsContainer: null
 	};

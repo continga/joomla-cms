@@ -43,7 +43,8 @@ $sublayout = empty($groupByFieldset) ? 'section' : 'section-byfieldsets';
 			data-bt-remove="a.group-remove-<?php echo $unique_subform_id; ?>"
 			data-bt-move="a.group-move-<?php echo $unique_subform_id; ?>"
 			data-repeatable-element="div.subform-repeatable-group-<?php echo $unique_subform_id; ?>"
-			data-minimum="<?php echo $min; ?>" data-maximum="<?php echo $max; ?>">
+			data-minimum="<?php echo $min; ?>" data-maximum="<?php echo $max; ?>"
+		>
 
 			<?php if (!empty($buttons['add'])) : ?>
 			<div class="btn-toolbar">
@@ -70,21 +71,18 @@ $sublayout = empty($groupByFieldset) ? 'section' : 'section-byfieldsets';
 		endforeach;
 		?>
 		<?php if ($multiple) : ?>
-		<script type="text/subform-repeatable-template-section" class="subform-repeatable-template-section">
-			<?php /** Do a rawurlencode to not tamper with HTML elements, especially with
-			        * nested subforms (subform in subform), this might contain a
-			        * </script> tag, which else blows up our markup. */ ?>
-			<?php echo rawurlencode(trim($this->sublayout(
-				$sublayout,
-				array(
-					'form' => $tmpl,
-					'basegroup' => $fieldname,
-					'group' => $fieldname . 'X',
-					'buttons' => $buttons,
-					'unique_subform_id' => $unique_subform_id,
+			<template class="subform-repeatable-template-section"><?php echo trim(
+				$this->sublayout(
+					$sublayout,
+					array(
+						'form' => $tmpl,
+						'basegroup' => $fieldname,
+						'group' => $fieldname . 'X',
+						'buttons' => $buttons,
+						'unique_subform_id' => $unique_subform_id,
+					)
 				)
-			))); ?>
-		</script>
+			); ?></template>
 		<?php endif; ?>
 		</div>
 	</div>
