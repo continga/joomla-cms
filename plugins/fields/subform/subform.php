@@ -35,10 +35,22 @@ class PlgFieldsSubform extends FieldsPlugin
 		{
 			return;
 		}
+
+		// Ensure it is an object
+		$formData = (object) $data;
+
+		// Gather the type
+		$type = $form->getValue('type');
+		if (!empty($formData->type))
+		{
+		    $type = $formData->type;
+		}
+
 		// Load our own form definition
 		$xml = new DOMDocument();
 		$xml->load($path);
 
+		// Get the options subform
 		$xmlxpath = new DOMXPath($xml);
 		$hiddenform = $xmlxpath->evaluate(
 			'/form/fields[@name="fieldparams"]/fieldset[@name="fieldparams"]/field[@name="options"]/form'
@@ -79,7 +91,7 @@ class PlgFieldsSubform extends FieldsPlugin
 				for ($i = 0; $i < $fields->length; $i++)
 				{
 					$field = $fields->item($i);
-					/* @var $field DOMNode */
+					/* @var $field \DOMElement */
 
 					// Rewrite this fields name, e.g. rewrite name=='buttons' for
 					// the editor fieldtype to '_type-editor_buttons'
@@ -88,8 +100,8 @@ class PlgFieldsSubform extends FieldsPlugin
 						('_type-' . $fieldType['type'] . '_')
 					);
 
-					// And set it to hidden
-					//$field['hidden'] = 'true';
+					// Only show this field when the field 'type' is of the specific type
+					$field->setAttribute('showon', 'type:' . $fieldType['type']);
 
 					// Import the rewritten field into our parent form
 					$hiddenform->appendChild($xml->importNode($field, true));
