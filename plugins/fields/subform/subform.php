@@ -218,29 +218,33 @@ class PlgFieldsSubform extends FieldsPlugin
 					$subfield->rawvalue = $subfield->value = trim($row[$subfield->name]);
 				}
 
-				// Do we have a rendercache entry for this type?
-				if (!isset($this->renderCache[$subfield->type]))
+				// Do we want to render the value of our fields?
+				if ($field_params->get('render_values', '1') == '1')
 				{
-					$this->renderCache[$subfield->type] = array();
-				}
+					// Do we have a rendercache entry for this type?
+					if (!isset($this->renderCache[$subfield->type]))
+					{
+						$this->renderCache[$subfield->type] = array();
+					}
 
-				// Lets see if we have a fast in-memory result for this
-				if (isset($this->renderCache[$subfield->type][$subfield->rawvalue]))
-				{
-					$subfield->value = $this->renderCache[$subfield->type][$subfield->rawvalue];
-				}
-				else
-				{
-					// Render this virtual subfield
-					$subfield->value = \JEventDispatcher::getInstance()->trigger(
-						'onCustomFieldsPrepareField',
-						array($context, $item, $subfield)
-					);
-					$this->renderCache[$subfield->type][$subfield->rawvalue] = $subfield->value;
-				}
-				if (is_array($subfield->value))
-				{
-					$subfield->value = implode(' ', $subfield->value);
+					// Lets see if we have a fast in-memory result for this
+					if (isset($this->renderCache[$subfield->type][$subfield->rawvalue]))
+					{
+						$subfield->value = $this->renderCache[$subfield->type][$subfield->rawvalue];
+					}
+					else
+					{
+						// Render this virtual subfield
+						$subfield->value = \JEventDispatcher::getInstance()->trigger(
+							'onCustomFieldsPrepareField',
+							array($context, $item, $subfield)
+						);
+						$this->renderCache[$subfield->type][$subfield->rawvalue] = $subfield->value;
+					}
+					if (is_array($subfield->value))
+					{
+						$subfield->value = implode(' ', $subfield->value);
+					}
 				}
 
 				// Store this subfields rendered value into our $row_values object
