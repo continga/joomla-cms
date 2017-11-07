@@ -69,7 +69,7 @@
 		// create from template
 		if (this.options.rowTemplateSelector) {
 			// Find the template element and get its HTML content, this is our template.
-			this.template = $.trim(this.$container.find(this.options.rowTemplateSelector).html()) || '';
+			this.template = $.trim(this.$container.find(this.options.rowTemplateSelector).last().html()) || '';
 		}
 		// create from existing rows
 		else {
@@ -273,6 +273,10 @@
 		if(window.SqueezeBox && window.SqueezeBox.assign){
 			SqueezeBox.assign($row.find('a.modal').get(), {parse: 'rel'});
 		}
+
+		// @TODO We need to do a lot more here. See e.g. administrator/templates/isis/js/template.js
+		// and all that it does with e.g. turning radios into btn groups with disabled/active/btn-danger classes.
+		// See also related issues #16695 and #16676, which could get fixed by this method being better.
 
 		// subforms in subforms
 		$row.find('div.subform-repeatable').subformRepeatable();
