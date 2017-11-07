@@ -36,16 +36,6 @@ class PlgFieldsSubform extends FieldsPlugin
 			return;
 		}
 
-		// Ensure it is an object
-		$formData = (object) $data;
-
-		// Gather the type
-		$type = $form->getValue('type');
-		if (!empty($formData->type))
-		{
-		    $type = $formData->type;
-		}
-
 		// Load our own form definition
 		$xml = new DOMDocument();
 		$xml->load($path);
@@ -102,6 +92,10 @@ class PlgFieldsSubform extends FieldsPlugin
 
 					// Only show this field when the field 'type' is of the specific type
 					$field->setAttribute('showon', 'type:' . $fieldType['type']);
+
+					// Those cannot be required, the 'showon' does only control visibility, and hence
+					// invisible elements would be required else
+					$field->setAttribute('required', '0');
 
 					// Import the rewritten field into our parent form
 					$hiddenform->appendChild($xml->importNode($field, true));
