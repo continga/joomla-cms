@@ -174,6 +174,195 @@ class JoomlaInstallerScript
 		{
 			$this->updateDatabaseMysql();
 		}
+
+		$this->uninstallRepeatableFieldsPlugin();
+	}
+
+	/**
+	 * Uninstalls the plg_fields_repeatable plugin and transforms its custom field instances
+	 * to instances of the plg_fields_subfields plugin.
+	 *
+	 * @return  void
+	 *
+	 * @since   __DEPLOY_VERSION__
+	 */
+	protected function uninstallRepeatableFieldsPlugin()
+	{
+		$db = JFactory::getDbo();
+
+		// Check if the plg_fields_repeatable plugin is present
+		$extensionId = $db->setQuery(
+			$db->getQuery(true)
+				->select('extension_id')
+				->from('#__extensions')
+				->where('name = ' . $db->quote('plg_fields_repeatable'))
+		)->loadResult();
+
+		// Skip uninstalling when it doesn't exist
+		if (!$extensionId)
+		{
+			return;
+		}
+
+		try
+		{
+			// Start a transaction to could rollback if something happens
+			$db->transactionStart();
+
+			// Get the FieldsModelField, we need it in a sec
+			\JModelLegacy::addIncludePath(JPATH_ROOT . '/administrator/components/com_fields/models');
+			$fieldModel = JModelLegacy::getInstance('Field', 'FieldsModel');
+			/* @var $fieldModel \FieldsModelField */
+
+			// Now get a list of all `repeatable` custom field instances
+			$db->setQuery(
+				$db->getQuery(true)
+					->select('*')
+					->from('#__fields')
+					->where($db->quoteName('type') . ' = ' . $db->quote('repeatable'))
+			);
+
+			// Execute the query and iterate over each `repeatable` instance
+			foreach ($db->loadObjectList() as $row)
+			{
+				// Skip broken rows - just a security measure, should not happen
+				if (!isset($row->fieldparams) || !($oldFieldparams = json_decode($row->fieldparams)) || !is_object($oldFieldparams))
+				{
+					continue;
+				}
+
+				/**
+				 * We basically want to transform this `repeatable` type into a `subfields` type. While $oldFieldparams
+				 * holds the `fieldparams` of the `repeatable` type, $newFieldparams shall hold the `fieldparams`
+				 * of the `subfields` type.
+				 */
+				$newFieldparams = array(
+					'repeat'  => '1',
+					'options' => array(),
+				);
+
+				// If this repeatable fields actually had child-fields (normally this is always the case)
+				if (isset($oldFieldparams->fields) && is_object($oldFieldparams->fields))
+				{
+					// Small counter for the child-fields (aka sub fields)
+					$newFieldCount = 0;
+
+					// And now iterate over the sub fields
+					foreach (get_object_vars($oldFieldparams->fields) as $oldField)
+					{
+						// Used for field name collision prevention
+						$fieldname_prefix = '';
+						$fieldname_suffix = 0;
+
+						// Try to save the new sub field in a loop to fix field name collisions
+						while (true)
+						{
+							/**
+							 * We basically want to create a completely new custom fields instance for every sub field
+							 * of the `repeatable` instance. This is what we use $data for, we create a new custom field
+							 * for each of the sub fields of the `repeatable` instance.
+							 */
+							$data = array(
+								'context'  => $row->context,
+								'group_id' => $row->group_id,
+								'title'    => $oldField->fieldname,
+								'name'     => (
+									$fieldname_prefix
+									. $oldField->fieldname
+									. ($fieldname_suffix > 0 ? ('_' . $fieldname_suffix) : '')
+								),
+								'label'    => $oldField->fieldname,
+								'type'     => $oldField->fieldtype,
+								'state'    => '1',
+								'language' => '*',
+							);
+
+							// `number` is not a valid custom field type, so use `text` instead.
+							if ($data['type'] == 'number')
+							{
+								$data['type'] = 'text';
+							}
+
+							// Reset the state because else \Joomla\CMS\MVC\Model\AdminModel will take an already
+							// existing value (e.g. from previous save) and do an UPDATE instead of INSERT.
+							$fieldModel->setState('field.id', 0);
+
+							// Try to save this, and do something when an error occurs
+							if (!$fieldModel->save($data))
+							{
+								$error = $fieldModel->getError();
+
+								// If the error is that the name collided, increase the collision prevention
+								if ($error == 'COM_FIELDS_ERROR_UNIQUE_NAME')
+								{
+									// If this is the first time this error occurs, set only the prefix
+									if ($fieldname_prefix == '')
+									{
+										$fieldname_prefix = ($row->name . '_');
+									}
+									else
+									{
+										// Else increase the suffix
+										$fieldname_suffix++;
+									}
+									// And start again with a new try to save it.
+									continue 1;
+								}
+
+								// Else we don't know the error, so something is totally wrong. Bail out.
+								throw new \Exception($error);
+							}
+
+							// Break out of the while loop, saving was successful.
+							break 1;
+						}
+
+						// Get the newly created id
+						$subfield_id = $fieldModel->getState('field.id');
+
+						// Really check that it is valid
+						if (!is_numeric($subfield_id) || $subfield_id < 1)
+						{
+							throw new \Exception('Something went wrong.');
+						}
+
+						// And tell our new `subfields` field about his new child
+						$newFieldparams['options'][('option' . $newFieldCount)] = array(
+							'customfield'   => $subfield_id,
+							'render_values' => '1',
+						);
+						$newFieldCount++;
+					}
+				}
+
+				// Write back the changed stuff to the database
+				$db->setQuery(
+					$db->getQuery(true)
+						->update('#__fields')
+						->set($db->quoteName('type') . ' = ' . $db->quote('subfields'))
+						->set($db->quoteName('fieldparams') . ' = ' . $db->quote(json_encode($newFieldparams)))
+						->where($db->quoteName('id') . ' = ' . $db->quote($row->id))
+				)->execute();
+			}
+
+			// Now, unprotect the plugin so we can uninstall it
+			$db->setQuery(
+				$db->getQuery(true)
+					->update('#__extensions')
+					->set('protected = 0')
+					->where($db->quoteName('extension_id') . ' = ' . $extensionId)
+			)->execute();
+
+			// And now uninstall the plugin
+			$installer = new JInstaller;
+			$installer->uninstall('plugin', $extensionId);
+			$db->transactionCommit();
+		}
+		catch (\Exception $e)
+		{
+			$db->transactionRollback();
+			throw $e;
+		}
 	}
 
 	/**
@@ -1505,6 +1694,8 @@ class JoomlaInstallerScript
 			'/administrator/language/en-GB/en-GB.com_weblinks.sys.ini',
 			'/administrator/language/en-GB/en-GB.plg_authentication_gmail.ini',
 			'/administrator/language/en-GB/en-GB.plg_authentication_gmail.sys.ini',
+			'/administrator/language/en-GB/en-GB.plg_fields_repeatable.ini',
+			'/administrator/language/en-GB/en-GB.plg_fields_repeatable.sys.ini',
 			'/administrator/language/en-GB/en-GB.plg_finder_weblinks.ini',
 			'/administrator/language/en-GB/en-GB.plg_finder_weblinks.sys.ini',
 			'/administrator/language/en-GB/en-GB.plg_search_categories.ini',
@@ -4332,6 +4523,10 @@ class JoomlaInstallerScript
 			'/plugins/authentication/gmail/gmail.xml',
 			'/plugins/captcha/recaptcha/postinstall/actions.php',
 			'/plugins/editors/codemirror/layouts/editors/codemirror/init.php',
+			'/plugins/fields/repeatable/params/repeatable.xml',
+			'/plugins/fields/repeatable/repeatable.php',
+			'/plugins/fields/repeatable/repeatable.xml',
+			'/plugins/fields/repeatable/tmpl/repeatable.php',
 			'/plugins/quickicon/joomlaupdate/joomlaupdate.php',
 			'/plugins/search/categories/categories.php',
 			'/plugins/search/categories/categories.xml',
@@ -5754,6 +5949,9 @@ class JoomlaInstallerScript
 			'/modules/mod_search/tmpl',
 			'/plugins/authentication/gmail',
 			'/plugins/captcha/recaptcha/postinstall',
+			'/plugins/fields/repeatable/params',
+			'/plugins/fields/repeatable/tmpl',
+			'/plugins/fields/repeatable',
 			'/plugins/search',
 			'/plugins/search/categories',
 			'/plugins/search/contacts',
